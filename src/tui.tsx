@@ -125,8 +125,10 @@ async function handleConfigCommand(
   const targets: string[] = []
   if (config.agents) targets.push(...Object.keys(config.agents).map((k) => `agent: ${k}`))
   if (config.categories) targets.push(...Object.keys(config.categories).map((k) => `category: ${k}`))
+  targets.push("fallback_model (default for unassigned)")
 
-  if (targets.length === 0) {
+  if (targets.length === 1) {
+    // Only fallback_model exists, no agents/categories
     context.ui.toast.show({
       message: "No agents or categories found to configure",
       variant: "warning",
@@ -143,12 +145,13 @@ async function handleConfigCommand(
   if (!target) return // User cancelled
 
   // Parse target type and key
-  const [type, ...keyParts] = target.split(": ")
+  const isFallback = target.startsWith("fallback_model")
+  const [type, ...keyParts] = isFallback ? ["fallback", ""] : target.split(": ")
   const key = keyParts.join(": ")
 
   // Step 2: Get current assignment
-  const section = type === "agent" ? config.agents : config.categories
-  const current = section?.[key]
+  const section = type === "agent" ? config.agents : type === "category" ? config.categories : undefined
+  const current = isFallback ? config.fallback_model : section?.[key]
   const currentValue = current ? `${current.providerId}/${current.modelId}` : undefined
 
   // Step 3: Build model options
@@ -169,25 +172,36 @@ async function handleConfigCommand(
 
   if (!selected) return // User cancelled
 
+  const selectedTitle = models.find((m) => `${m.providerId}/${m.modelId}` === selected)?.modelName ?? selected
+
   // Step 5: Apply change
   if (selected === "__clear__") {
-    delete section?.[key]
+    if (isFallback) {
+      delete config.fallback_model
+    } else {
+      delete section?.[key]
+    }
   } else {
     const [providerId, modelId] = selected.split("/")
-    if (!section) {
-      if (type === "agent") config.agents = {}
-      else config.categories = {}
+    if (isFallback) {
+      config.fallback_model = { providerId, modelId }
+    } else {
+      if (!section) {
+        if (type === "agent") config.agents = {}
+        else config.categories = {}
+      }
+      const targetSection = type === "agent" ? config.agents! : config.categories!
+      targetSection[key] = { providerId, modelId }
     }
-    const targetSection = type === "agent" ? config.agents! : config.categories!
-    targetSection[key] = { providerId, modelId }
   }
 
   // Step 6: Write back
   writeConfig(configPath, config)
 
+  const label = isFallback ? "fallback_model" : key
   context.ui.toast.show({
     title: "Saved",
-    message: `${key} → ${selected === "__clear__" ? "cleared" : selected}`,
+    message: `${label} → ${selected === "__clear__" ? "cleared" : selectedTitle}`,
     variant: "success",
     duration: 2000,
   })
