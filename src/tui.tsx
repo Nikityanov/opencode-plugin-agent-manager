@@ -165,7 +165,7 @@ async function handleConfigCommand(
   modelOptions.push({ title: "Clear (remove assignment)", value: "__clear__", description: "Remove this override" })
 
   const selected = await context.ui.dialog.select({
-    title: `Select model for ${key}`,
+    title: isFallback ? "Select fallback model" : `Select model for ${key}`,
     current: currentValue,
     options: modelOptions,
   })
