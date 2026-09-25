@@ -32,7 +32,6 @@ function openAgentModelPicker(
     title: `${model.title}${model.value === current ? " (current)" : ""}`,
   }))
 
-  api.ui.dialog.setSize("large")
   api.ui.dialog.replace(() => {
     const DialogSelect = api.ui.DialogSelect
     return (
@@ -56,6 +55,7 @@ function openAgentModelPicker(
       />
     )
   })
+  api.ui.dialog.setSize("large")
 }
 
 export function handleOpenCodeConfigCommand(
@@ -74,7 +74,6 @@ export function handleOpenCodeConfigCommand(
     return
   }
 
-  api.ui.dialog.setSize("medium")
   api.ui.dialog.replace(() => {
     const DialogSelect = api.ui.DialogSelect
     return (
@@ -88,6 +87,7 @@ export function handleOpenCodeConfigCommand(
       />
     )
   })
+  api.ui.dialog.setSize("medium")
 }
 
 export function handleOpenCodeStatusCommand(api: TuiApi, configPath: string): void {

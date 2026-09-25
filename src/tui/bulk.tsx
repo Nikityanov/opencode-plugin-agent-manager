@@ -5,7 +5,7 @@ import type { ConfigLocation, ModelOption } from "../types"
 import type { TuiApi } from "./model-options"
 import { showError } from "./notifications"
 import { getOhMyTargets } from "./ohmy-commands"
-import { applyModelToOhMyEntries } from "./operations"
+import { applyModelToOhMyTargets } from "./operations"
 
 export function selectModel(
   api: TuiApi,
@@ -13,7 +13,6 @@ export function selectModel(
   models: readonly ModelOption[],
   onSelect: (model: string) => void,
 ): void {
-  api.ui.dialog.setSize("large")
   api.ui.dialog.replace(() => {
     const DialogSelect = api.ui.DialogSelect
     return (
@@ -27,6 +26,7 @@ export function selectModel(
       />
     )
   })
+  api.ui.dialog.setSize("large")
 }
 
 export function confirmBulk(
@@ -35,7 +35,6 @@ export function confirmBulk(
   message: string,
   onConfirm: () => void,
 ): void {
-  api.ui.dialog.setSize("medium")
   api.ui.dialog.replace(() => {
     const DialogConfirm = api.ui.DialogConfirm
     return (
@@ -50,6 +49,7 @@ export function confirmBulk(
       />
     )
   })
+  api.ui.dialog.setSize("medium")
 }
 
 export function handleOhMyBulkCommand(
@@ -89,11 +89,7 @@ export function handleOhMyBulkCommand(
       `Set ${model} for ${count} oh-my agents/categories?`,
       () => {
         try {
-          for (const target of targets) {
-            const entries = target.kind === "agent" ? (layer.agents ??= {}) : (layer.categories ??= {})
-            entries[target.key] ??= {}
-          }
-          applyModelToOhMyEntries(layer, model)
+          applyModelToOhMyTargets(layer, targets, model)
           writeConfig(configLocation.path, config, section)
           api.ui.toast({
             variant: "success",
