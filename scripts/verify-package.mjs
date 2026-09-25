@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import { join } from "node:path"
+import { createApi } from "./fixture.mjs"
 
 const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf-8"))
 assert.equal(packageJson.name, "agent-model-manager")
@@ -84,45 +85,6 @@ assert.match(
   statusDialogSource,
   /api\.ui\.dialog\.replace[\s\S]*api\.ui\.dialog\.setSize\("large"\)/,
 )
-
-function createApi(directory, agents = {}, plugins = []) {
-  let layer
-  let replaceArguments
-  const api = {
-    state: {
-      path: { directory, config: join(directory, "opencode.json") },
-      config: {
-        provider: {
-          test: { name: "Test", models: { "test/model": { id: "test/model", name: "Test Model" } } },
-        },
-        agent: agents,
-        plugin: plugins,
-      },
-      provider: [],
-    },
-    keymap: {
-      registerLayer(value) {
-        layer = value
-        return () => {}
-      },
-    },
-    lifecycle: { onDispose() {} },
-    ui: {
-      DialogAlert: (props) => props,
-      DialogConfirm: (props) => props,
-      DialogSelect: (props) => props,
-      toast() {},
-      dialog: {
-        setSize() {},
-        replace(...args) {
-          replaceArguments = args
-        },
-        clear() {},
-      },
-    },
-  }
-  return { api, getLayer: () => layer, getReplaceArguments: () => replaceArguments }
-}
 
 const fixtureDirectory = await mkdtemp(join(os.tmpdir(), "agent-model-manager-"))
 const modernDirectory = await mkdtemp(join(os.tmpdir(), "agent-model-manager-modern-"))
@@ -225,6 +187,22 @@ try {
   for (const name of ["amm", "amm-all-ohmy", "amm-status", "amm-opencode", "amm-opencode-all"]) {
     assert.equal(configuredNames.includes(name), true)
   }
+
+  // The command layer must stay mode-less. The command palette is itself a
+  // dialog, so opening it pushes the host's "modal" mode; a base-scoped command
+  // layer would go inactive there and its rows would vanish from the palette.
+  assert.equal(
+    configured.getLayer().mode,
+    undefined,
+    "runtime contract: the command layer must not be mode-scoped, or the palette cannot see it",
+  )
+  const bindingLayer = configured.getBindingLayer()
+  assert.equal(bindingLayer.mode, "base", "runtime contract: the binding layer must stay base-scoped")
+  assert.deepEqual(
+    bindingLayer.bindings.map((binding) => binding.cmd),
+    ["amm-ohmy-setup"],
+    "runtime contract: ctrl+shift+m must target the available primary setup command",
+  )
 
   configured.getLayer().commands.find((command) => command.name === "amm").run()
   assert.equal(configured.getReplaceArguments()[1], undefined)
