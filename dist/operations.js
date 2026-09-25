@@ -10,7 +10,27 @@ function applyModelToOhMyEntries(config, model) {
   }
   return count;
 }
+function applyModelToOhMyTargets(layer, targets, model) {
+  for (const target of targets) {
+    const entries = entriesForTarget(layer, target);
+    entries[target.key] = { ...entries[target.key], model };
+  }
+}
+function assertNever(value) {
+  return value;
+}
+function entriesForTarget(layer, target) {
+  switch (target.kind) {
+    case "agent":
+      return layer.agents ??= {};
+    case "category":
+      return layer.categories ??= {};
+    default:
+      return assertNever(target);
+  }
+}
 export {
-  applyModelToOhMyEntries
+  applyModelToOhMyEntries,
+  applyModelToOhMyTargets
 };
 //# sourceMappingURL=operations.js.map
