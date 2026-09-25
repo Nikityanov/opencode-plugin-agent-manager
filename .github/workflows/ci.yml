@@ -68,6 +68,6 @@ jobs:
         run: npm install -g opencode-ai@${{ matrix.version }}
       - name: Verify isolated GitHub plugin install
         env:
-          # Pin the checked-out commit; no owner or mutable default branch is assumed.
-          PLUGIN_SPEC: "github:${{ github.repository }}#${{ github.ref_name }}"
+          # Use the immutable GitHub archive URL; OpenCode 1.18.x does not reliably prepare github: git deps.
+          PLUGIN_SPEC: "https://github.com/${{ github.repository }}/archive/refs/${{ github.ref_type == 'tag' && 'tags' || 'heads' }}/${{ github.ref_name }}.tar.gz"
         run: npm run verify:opencode

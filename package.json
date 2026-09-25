@@ -1,6 +1,6 @@
 {
   "name": "agent-model-manager",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "TUI plugin for configuring agent and category models in modern and legacy oh-my-openagent configurations",
   "type": "module",
   "exports": {
