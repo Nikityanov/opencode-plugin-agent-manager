@@ -269,4 +269,3 @@ export function registerModelManagerCommands(
 
   if (typeof dispose === "function") api.lifecycle.onDispose(dispose)
 }
-
