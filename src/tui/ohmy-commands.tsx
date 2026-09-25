@@ -11,10 +11,9 @@ import type {
 import { showError } from "./notifications"
 import type { TuiApi } from "./model-options"
 
-export type Target = {
-  readonly kind: "agent" | "category"
-  readonly key: string
-}
+export type Target =
+  | { readonly kind: "agent"; readonly key: string }
+  | { readonly kind: "category"; readonly key: string }
 
 const DEFAULT_AGENT_NAMES = [
   "sisyphus",
@@ -106,7 +105,6 @@ function openModelSelector(
     { value: "__clear__", title: "Clear model override" },
   ]
 
-  api.ui.dialog.setSize("large")
   api.ui.dialog.replace(() => {
     const DialogSelect = api.ui.DialogSelect
     return (
@@ -124,6 +122,7 @@ function openModelSelector(
       />
     )
   })
+  api.ui.dialog.setSize("large")
 }
 
 function applyChange(
@@ -183,7 +182,6 @@ export function handleConfigCommand(
     return
   }
 
-  api.ui.dialog.setSize("medium")
   api.ui.dialog.replace(() => {
     const DialogSelect = api.ui.DialogSelect
     return (
@@ -197,4 +195,5 @@ export function handleConfigCommand(
       />
     )
   })
+  api.ui.dialog.setSize("medium")
 }
