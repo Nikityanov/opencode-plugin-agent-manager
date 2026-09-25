@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import { join } from "node:path"
 
@@ -7,6 +7,62 @@ const packageJson = JSON.parse(await readFile(new URL("../package.json", import.
 assert.equal(packageJson.name, "agent-model-manager")
 assert.equal(packageJson.exports["./tui"], "./dist/tui.js")
 assert.equal(packageJson.main, undefined)
+assert.equal(
+  packageJson.exports["./server"],
+  undefined,
+  "package contract: the TUI package must not expose a server export",
+)
+assert.equal(
+  packageJson.scripts?.postinstall,
+  undefined,
+  "package contract: the package must not define a postinstall hook",
+)
+assert.equal(
+  packageJson.files?.includes("dist/"),
+  true,
+  "package contract: files must include dist/",
+)
+assert.equal(
+  packageJson.engines?.opencode,
+  ">=1.18.0 <2.0.0",
+  "package contract: engines.opencode must be >=1.18.0 <2.0.0",
+)
+assert.equal(
+  packageJson.engines?.node,
+  ">=20",
+  "package contract: engines.node must be >=20",
+)
+
+const gitignore = await readFile(new URL("../.gitignore", import.meta.url), "utf-8")
+assert.doesNotMatch(
+  gitignore,
+  /^[ \t]*dist(?:\/|\*|$)/m,
+  "package contract: .gitignore must not ignore dist/",
+)
+
+for (const hookName of ["preinstall", "install", "postinstall"]) {
+  const command = packageJson.scripts?.[hookName]
+  if (command === undefined) continue
+
+  const scriptPath = command.match(
+    /(?:^|\s)(?:\.\/)?((?:[\w.-]+\/)*[\w.-]+\.(?:c|m)?js)(?=\s|$)/,
+  )?.[1]
+  if (scriptPath === undefined) continue
+
+  const normalizedScriptPath = scriptPath.replace(/^\.\//, "").replaceAll("\\", "/")
+  await assert.doesNotReject(
+    access(new URL(normalizedScriptPath, new URL("../", import.meta.url))),
+    `package contract: scripts.${hookName} points to a missing file: ${normalizedScriptPath}`,
+  )
+  assert.equal(
+    packageJson.files?.some((entry) => {
+      const normalizedEntry = entry.replace(/^\.\//, "").replace(/\/\*\*?$/, "").replace(/\/$/, "")
+      return normalizedScriptPath === normalizedEntry || normalizedScriptPath.startsWith(`${normalizedEntry}/`)
+    }),
+    true,
+    `package contract: scripts.${hookName} points outside files: ${normalizedScriptPath}`,
+  )
+}
 
 const module = await import(new URL("../dist/tui.js", import.meta.url).href)
 assert.equal(typeof module.default, "object")

@@ -1,37 +1,49 @@
 {
   "name": "agent-model-manager",
-  "version": "0.1.0",
-  "description": "TUI plugin for configuring agent and category models in oh-my-openagent.json",
+  "version": "0.1.1",
+  "description": "TUI plugin for configuring agent and category models in modern and legacy oh-my-openagent configurations",
   "type": "module",
   "exports": {
     "./tui": "./dist/tui.js"
   },
   "engines": {
-    "opencode": ">=1.18.0"
+    "node": ">=20",
+    "opencode": ">=1.18.0 <2.0.0"
   },
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck && npm run build && node scripts/verify-package.mjs",
-    "postinstall": "node scripts/postinstall.js"
+    "verify:install": "node scripts/verify-install.mjs",
+    "verify:opencode": "node scripts/verify-opencode-install.mjs"
   },
   "dependencies": {
     "jsonc-parser": "^3.3.1",
     "zod": "^4.1.8"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.18.0",
+    "@opencode-ai/plugin": ">=1.18.0 <2.0.0",
     "@opentui/core": ">=0.5.8",
     "@opentui/keymap": ">=0.5.8",
     "@opentui/solid": ">=0.5.8",
     "solid-js": ">=1.9.0"
   },
   "peerDependenciesMeta": {
-    "@opencode-ai/plugin": { "optional": true },
-    "@opentui/core": { "optional": true },
-    "@opentui/keymap": { "optional": true },
-    "@opentui/solid": { "optional": true },
-    "solid-js": { "optional": true }
+    "@opencode-ai/plugin": {
+      "optional": true
+    },
+    "@opentui/core": {
+      "optional": true
+    },
+    "@opentui/keymap": {
+      "optional": true
+    },
+    "@opentui/solid": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@opencode-ai/plugin": "1.18.31",
