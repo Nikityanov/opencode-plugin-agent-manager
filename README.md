@@ -1,13 +1,14 @@
 # agent-model-manager
 
-TUI plugin for [OpenCode](https://opencode.ai) that edits agent and category model assignments in `oh-my-openagent.json`.
+TUI plugin for [OpenCode](https://opencode.ai) that edits agent and category model assignments in the active oh-my-openagent configuration.
 
 ## Features
 
-- Reads the active `oh-my-openagent.json` from the project or `~/.config/opencode/`
+- Reads modern `.omo/omo.jsonc` from the project or `~/.omo/`, including the `[opencode]` layer
+- Keeps legacy `oh-my-openagent.json[c]` support as a fallback
 - Reads available models from the resolved OpenCode configuration
 - Adds separate controls for oh-my agents/categories and OpenCode agents
-- Supports one-model bulk updates for each scope
+- Supports one-model bulk updates for each scope, including built-in oh-my agents and categories
 - Hides oh-my commands when the `oh-my-openagent` package or its configuration is unavailable
 - Supports a `Ctrl+Shift+M` shortcut for the primary configuration command
 - Preserves unrelated configuration fields while changing model assignments
@@ -43,22 +44,26 @@ To use the local build, install or link this package so OpenCode can resolve the
 
 ## Configuration shape
 
-The plugin edits the model override inside each agent or category:
+For modern oh-my-openagent configuration, the plugin edits model overrides in the `[opencode]` layer:
 
-```json
+```jsonc
 {
-  "agents": {
-    "sisyphus": { "model": "opencode-go/deepseek-v4-flash" }
-  },
-  "categories": {
-    "deep": { "model": "opencode-go/deepseek-v4-flash" }
+  "[opencode]": {
+    "agents": {
+      "sisyphus": { "model": "opencode-go/deepseek-v4-flash" }
+    },
+    "categories": {
+      "deep": { "model": "opencode-go/deepseek-v4-flash" }
+    }
   }
 }
 ```
 
+Legacy root-level `agents` and `categories` remain supported for older installations.
+
 ## Commands
 
-When `oh-my-openagent.json` is present:
+When an active `.omo/omo.jsonc` or legacy `oh-my-openagent.json[c]` configuration is present:
 
 - `/amm` — configure one oh-my agent or category
 - `/amm-all-ohmy` — apply one model to every oh-my agent and category
@@ -70,7 +75,7 @@ OpenCode agent commands are always available:
 - `/amm-opencode-all` — apply one model to all resolved OpenCode agents, including built-ins
 - `/amm-opencode-status` — show OpenCode agent models
 
-If the `oh-my-openagent` package or its configuration is unavailable, the oh-my commands are omitted and only OpenCode commands remain.
+If neither the `oh-my-openagent` nor legacy `oh-my-opencode` package/configuration is available, the oh-my commands are omitted and only OpenCode commands remain.
 
 ## License
 

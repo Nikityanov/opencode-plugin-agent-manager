@@ -1,16 +1,18 @@
 import { applyEdits, modify, parse as parseJsonc, type ParseError } from "jsonc-parser"
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import {
   ohMyOpenAgentConfigSchema,
   type ConfigLocation,
+  type ConfigSection,
+  type OhMyConfigLayer,
   type OhMyOpenAgentConfig,
 } from "./types"
 
-const CONFIG_FILENAMES = ["oh-my-openagent.json", "oh-my-openagent.jsonc"] as const
+const LEGACY_CONFIG_FILENAMES = ["oh-my-openagent.json", "oh-my-openagent.jsonc"] as const
+const OMO_CONFIG_FILENAMES = ["omo.jsonc", "omo.json"] as const
 const OPEN_CODE_CONFIG_FILENAMES = ["opencode.jsonc", "opencode.json", "config.json"] as const
-const MAX_PARENT_LEVELS = 5
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -56,34 +58,81 @@ function readConfigFile(path: string): OhMyOpenAgentConfig {
   return ohMyOpenAgentConfigSchema.parse(parseJsoncObject(path))
 }
 
-function findExistingConfig(startDir: string): ConfigLocation | null {
-  const visited = new Set<string>()
-  let current = startDir
+export function getOhMyConfigLayer(
+  config: OhMyOpenAgentConfig,
+  section: ConfigSection,
+): OhMyConfigLayer {
+  if (section === "root") return config
+  return config["[opencode]"] ?? {}
+}
 
-  for (let level = 0; level < MAX_PARENT_LEVELS; level += 1) {
-    for (const filename of CONFIG_FILENAMES) {
-      const candidate = join(current, filename)
-      if (visited.has(candidate)) continue
-      visited.add(candidate)
+export function ensureOhMyConfigLayer(
+  config: OhMyOpenAgentConfig,
+  section: ConfigSection,
+): OhMyConfigLayer {
+  if (section === "root") return config
 
-      if (existsSync(candidate)) {
-        return { path: candidate, config: readConfigFile(candidate) }
-      }
-    }
+  const existing = config["[opencode]"]
+  if (existing) return existing
 
-    const parent = join(current, "..")
-    if (parent === current) break
+  const created: OhMyConfigLayer = {}
+  config["[opencode]"] = created
+  return created
+}
+
+function findExistingInDirectory(
+  directory: string,
+  filenames: readonly string[],
+): string | null {
+  for (const filename of filenames) {
+    const candidate = join(directory, filename)
+    if (existsSync(candidate)) return candidate
+  }
+  return null
+}
+
+function findProjectConfigPath(
+  startDir: string,
+  configDirectory: string | null,
+  filenames: readonly string[],
+): string | null {
+  let current = resolve(startDir)
+  const home = resolve(homedir())
+
+  while (true) {
+    const directory = configDirectory ? join(current, configDirectory) : current
+    const candidate = findExistingInDirectory(directory, filenames)
+    if (candidate) return candidate
+    if (current === home) return null
+
+    const parent = dirname(current)
+    if (parent === current) return null
     current = parent
   }
+}
 
-  const globalDirectory = join(homedir(), ".config", "opencode")
-  for (const filename of CONFIG_FILENAMES) {
-    const candidate = join(globalDirectory, filename)
-    if (visited.has(candidate) || !existsSync(candidate)) continue
-    return { path: candidate, config: readConfigFile(candidate) }
-  }
+function readLocation(path: string): ConfigLocation {
+  const config = readConfigFile(path)
+  const section: ConfigSection = isRecord(config["[opencode]"]) ? "opencode" : "root"
+  return { path, config, section }
+}
 
-  return null
+function findExistingConfig(startDir: string): ConfigLocation | null {
+  const projectModern = findProjectConfigPath(startDir, ".omo", OMO_CONFIG_FILENAMES)
+  if (projectModern) return readLocation(projectModern)
+
+  const home = resolve(homedir())
+  const userModern = findExistingInDirectory(join(home, ".omo"), OMO_CONFIG_FILENAMES)
+  if (userModern) return readLocation(userModern)
+
+  const projectLegacy = findProjectConfigPath(startDir, null, LEGACY_CONFIG_FILENAMES)
+  if (projectLegacy) return readLocation(projectLegacy)
+
+  const userLegacy = findExistingInDirectory(
+    join(home, ".config", "opencode"),
+    LEGACY_CONFIG_FILENAMES,
+  )
+  return userLegacy ? readLocation(userLegacy) : null
 }
 
 export function findConfig(startDir: string): ConfigLocation | null {
@@ -94,12 +143,83 @@ export function readConfig(absolutePath: string): OhMyOpenAgentConfig {
   return readConfigFile(absolutePath)
 }
 
-export function writeConfig(absolutePath: string, config: OhMyOpenAgentConfig): void {
-  writeFileSync(absolutePath, `${JSON.stringify(config, null, 2)}\n`, "utf-8")
+function getModelValue(value: unknown): string | undefined {
+  return isRecord(value) && typeof value.model === "string" ? value.model : undefined
 }
 
-export function getConfigurableKeys(config: OhMyOpenAgentConfig): string[] {
-  return [...Object.keys(config.agents ?? {}), ...Object.keys(config.categories ?? {})]
+function getModelMap(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {}
+}
+
+function getLayerRecord(
+  config: Record<string, unknown>,
+  section: ConfigSection,
+): Record<string, unknown> {
+  if (section === "root") return config
+  return isRecord(config["[opencode]"]) ? config["[opencode]"] : {}
+}
+
+function getModelPath(
+  section: ConfigSection,
+  kind: "agents" | "categories",
+  name: string,
+): string[] {
+  return [...(section === "opencode" ? ["[opencode]"] : []), kind, name, "model"]
+}
+
+export function writeConfig(
+  absolutePath: string,
+  config: OhMyOpenAgentConfig,
+  section: ConfigSection = "root",
+): void {
+  const raw = readFileSync(absolutePath, "utf-8")
+  const original = parseJsoncText(raw, absolutePath)
+  const originalLayer = getLayerRecord(original, section)
+  const nextLayer = getOhMyConfigLayer(config, section)
+  let updated = raw
+
+  for (const kind of ["agents", "categories"] as const) {
+    const originalMap = getModelMap(originalLayer[kind])
+    const nextMap = getModelMap(nextLayer[kind])
+    const names = new Set([...Object.keys(originalMap), ...Object.keys(nextMap)])
+
+    for (const name of names) {
+      const originalModel = getModelValue(originalMap[name])
+      const nextModel = getModelValue(nextMap[name])
+      if (originalModel === nextModel) continue
+
+      const edits = modify(updated, getModelPath(section, kind, name), nextModel, {
+        formattingOptions: { insertSpaces: true, tabSize: 2 },
+      })
+      updated = applyEdits(updated, edits)
+    }
+  }
+
+  writeFileSync(absolutePath, updated.endsWith("\n") ? updated : `${updated}\n`, "utf-8")
+}
+
+export function getConfigurableKeys(
+  config: OhMyOpenAgentConfig,
+  section: ConfigSection = "root",
+): string[] {
+  const layer = getOhMyConfigLayer(config, section)
+  return [...Object.keys(layer.agents ?? {}), ...Object.keys(layer.categories ?? {})]
+}
+
+export function readOpenCodeAgentModels(
+  pathOrDirectory: string,
+): Readonly<Record<string, string | undefined>> {
+  const configPath = resolveOpenCodeConfigPath(pathOrDirectory)
+  const raw = existsSync(configPath) ? readFileSync(configPath, "utf-8") : "{}\n"
+  const config = parseJsoncText(raw, configPath)
+  const agents = isRecord(config.agent) ? config.agent : {}
+  const models: Record<string, string | undefined> = {}
+
+  for (const [name, value] of Object.entries(agents)) {
+    models[name] = isRecord(value) && typeof value.model === "string" ? value.model : undefined
+  }
+
+  return models
 }
 
 export function setOpenCodeAgentModels(
