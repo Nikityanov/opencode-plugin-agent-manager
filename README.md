@@ -1,89 +1,76 @@
-# opencode-agent-model-manager
+# agent-model-manager
 
-TUI plugin for [OpenCode](https://opencode.ai) to configure agent/category model assignments in `oh-my-openagent.json`.
+TUI plugin for [OpenCode](https://opencode.ai) that edits agent and category model assignments in `oh-my-openagent.json`.
 
 ## Features
 
-- **Universal** — reads `oh-my-openagent.json` dynamically, no hardcoded agents or categories
-- **Slash commands** — `/amm` to configure, `/amm-status` to view current assignments
-- **Dialog-based UI** — select agents/categories and assign models via interactive dialogs
-- **Preserves config** — writes back to JSON while maintaining structure
+- Reads the active `oh-my-openagent.json` from the project or `~/.config/opencode/`
+- Reads available models from the resolved OpenCode configuration
+- Adds separate controls for oh-my agents/categories and OpenCode agents
+- Supports one-model bulk updates for each scope
+- Hides oh-my commands when the `oh-my-openagent` package or its configuration is unavailable
+- Supports a `Ctrl+Shift+M` shortcut for the primary configuration command
+- Preserves unrelated configuration fields while changing model assignments
 
-## Install
+## OpenCode 1.18.x registration
 
-```bash
-npm install -g opencode-agent-model-manager
-```
-
-Then add to your `opencode.json`:
-
-```json
-{
-  "plugins": ["opencode-agent-model-manager"]
-}
-```
-
-Or place in `.opencode/plugins/` for auto-discovery:
-
-```
-.opencode/
-└── plugins/
-    └── opencode-agent-model-manager/
-        ├── src/
-        │   ├── index.ts
-        │   └── tui.tsx
-        └── package.json
-```
-
-## Usage
-
-### `/amm` — Configure models
-
-Opens a dialog to select an agent or category, then choose a model to assign.
-
-### `/amm-status` — View current assignments
-
-Shows a summary of all current model assignments.
-
-## Configuration
-
-This plugin reads `oh-my-openagent.json` from your project root or parent directories. The file should contain:
+This is a TUI-only plugin. Register it in `tui.json`, not in `opencode.json`:
 
 ```json
 {
-  "providers": {
-    "openrouter": {
-      "name": "OpenRouter",
-      "id": "openrouter",
-      "models": [
-        { "id": "anthropic/claude-sonnet-4", "name": "Claude Sonnet 4" }
-      ]
-    }
-  },
-  "agents": {
-    "sisyphus": { "providerId": "openrouter", "modelId": "anthropic/claude-sonnet-4" }
-  },
-  "categories": {
-    "deep": { "providerId": "openrouter", "modelId": "anthropic/claude-sonnet-4" }
-  }
+  "plugin": ["agent-model-manager"]
 }
 ```
+
+Global config path:
+
+```text
+~/.config/opencode/tui.json
+```
+
+After changing plugin files or configuration, fully restart OpenCode.
 
 ## Development
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/opencode-plugin-agent-model-manager.git
-cd opencode-plugin-agent-model-manager
 npm install
+npm test
 ```
 
-Test locally by symlinking:
+`npm test` type-checks the source, builds `dist/tui.js`, and verifies the package export contract.
 
-```bash
-npm link
-# Then in your project:
-# opencode.json: { "plugins": ["opencode-agent-model-manager"] }
+To use the local build, install or link this package so OpenCode can resolve the `agent-model-manager` package name, then keep the `tui.json` entry above.
+
+## Configuration shape
+
+The plugin edits the model override inside each agent or category:
+
+```json
+{
+  "agents": {
+    "sisyphus": { "model": "opencode-go/deepseek-v4-flash" }
+  },
+  "categories": {
+    "deep": { "model": "opencode-go/deepseek-v4-flash" }
+  }
+}
 ```
+
+## Commands
+
+When `oh-my-openagent.json` is present:
+
+- `/amm` — configure one oh-my agent or category
+- `/amm-all-ohmy` — apply one model to every oh-my agent and category
+- `/amm-status` — show oh-my assignments
+
+OpenCode agent commands are always available:
+
+- `/amm-opencode` — configure one OpenCode agent
+- `/amm-opencode-all` — apply one model to all resolved OpenCode agents, including built-ins
+- `/amm-opencode-status` — show OpenCode agent models
+
+If the `oh-my-openagent` package or its configuration is unavailable, the oh-my commands are omitted and only OpenCode commands remain.
 
 ## License
 
