@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Package contract test
+        run: node scripts/verify-package.mjs
+      - name: Verify tracked dist is reproducible
+        run: |
+          git ls-files --error-unmatch -- dist/tui.js dist/config.js dist/operations.js
+          git diff --exit-code -- dist
+      - name: Clean install verification
+        run: npm run verify:install
+
+  opencode:
+    name: OpenCode install (${{ matrix.version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - "1.18.0"
+          - "1.18.32"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install OpenCode
+        run: npm install -g opencode-ai@${{ matrix.version }}
+      - name: Verify isolated GitHub plugin install
+        env:
+          # Pin the checked-out commit; no owner or mutable default branch is assumed.
+          PLUGIN_SPEC: "github:${{ github.repository }}#${{ github.sha }}"
+        run: npm run verify:opencode
