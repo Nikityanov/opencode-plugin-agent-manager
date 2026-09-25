@@ -7,10 +7,10 @@ TUI plugin for [OpenCode](https://opencode.ai) that edits agent and category mod
 - Reads modern `.omo/omo.jsonc` from the project or `~/.omo/`, including the `[opencode]` layer
 - Keeps legacy `oh-my-openagent.json[c]` support as a fallback
 - Reads available models from the resolved OpenCode configuration
-- Adds separate controls for oh-my agents/categories and OpenCode agents
+- Exposes exactly two command-palette rows, one per scope, that open the same setup wizard
 - Supports one-model bulk updates for each scope, including built-in oh-my agents and categories
-- Hides oh-my commands when the `oh-my-openagent` package or its configuration is unavailable
-- Supports a `Ctrl+Shift+M` shortcut for the primary configuration command
+- Hides the oh-my palette row when the `oh-my-openagent` package or its configuration is unavailable
+- Supports a `Ctrl+Shift+M` shortcut for the primary setup command
 - Preserves unrelated configuration fields while changing model assignments
 
 ## Requirements
@@ -169,21 +169,44 @@ For modern oh-my-openagent configuration, the plugin edits model overrides in th
 
 Legacy root-level `agents` and `categories` remain supported for older installations.
 
-## Commands
+## Command palette
 
-When an active `.omo/omo.jsonc` or legacy `oh-my-openagent.json[c]` configuration is present:
+The palette shows exactly two rows, both under the `Agent Model Manager` category:
 
-- `/amm`: configure one oh-my agent or category
-- `/amm-all-ohmy`: apply one model to every oh-my agent and category
-- `/amm-status`: show oh-my assignments
+| Palette row | Slash name | Aliases | Registered when |
+| --- | --- | --- | --- |
+| `OpenCode agents setup` | `/amm-opencode-setup` | `/amm-opencode` | Always |
+| `Oh My OpenAgent setup` | `/amm-ohmy-setup` | `/amm`, `/model-config`, `/agent-config` | An active oh-my-openagent package and configuration are both available |
 
-OpenCode agent commands are always available:
+If the `oh-my-openagent` or legacy `oh-my-opencode` package or its configuration is unavailable, the `Oh My OpenAgent setup` row is not registered at all and `/amm`, `/model-config`, and `/agent-config` stop resolving. The OpenCode row always stays.
 
-- `/amm-opencode`: configure one OpenCode agent
-- `/amm-opencode-all`: apply one model to all resolved OpenCode agents, including built-ins
-- `/amm-opencode-status`: show OpenCode agent models
+`Ctrl+Shift+M` runs the primary row: `Oh My OpenAgent setup` when oh-my is available, otherwise `OpenCode agents setup`. The shortcut is registered in its own keymap layer scoped to the host's `base` mode, so it cannot re-enter while a modal dialog is already open. The commands themselves live in a separate, mode-less layer — the command palette is itself a dialog, so a base-scoped command layer would go inactive exactly when the palette asks it for rows.
 
-If neither the `oh-my-openagent` nor legacy `oh-my-opencode` package/configuration is available, the oh-my commands are omitted and only OpenCode commands remain.
+## Setup wizard
+
+Both palette rows open the same four-step wizard for their own scope. Nothing is written until the final Apply.
+
+1. **Hub** — pick a section. `Agents` and `Review assignments` for OpenCode; `Agents`, `Categories`, and `Review assignments` for oh-my. `Review assignments` opens the existing read-only status screen for that scope.
+2. **Targets** — a checkbox list of every target in the section, annotated with `[current]`, `[inherited]`, and the model each one already has. `Up`/`Down` move one row, `PageUp`/`PageDown` move ten, `Home`/`End` jump to the ends, `Space` toggles the focused row, `a` selects all, `n` clears the selection, `Enter` continues, `Backspace` returns to the hub. `Enter` with an empty selection only shows a warning.
+3. **Model** — the searchable model picker, with a `Back` row at the end of the list.
+4. **Review** — the scope, the selected targets, and the model that will be written. `Enter` applies and closes the dialog, `Backspace` returns to the model picker. A failed write shows an error toast and leaves the review screen open.
+
+`Escape` and `Ctrl+C` stay owned by the OpenCode host dialog, as before.
+
+The OpenCode scope lists the union of the agents present in the resolved host configuration and the agents already persisted in the config file, and reads a persisted model in preference to the in-state value. The oh-my scope lists the agents and categories already defined in the active configuration, including the built-in names when the config uses the `[opencode]` layer.
+
+## Slash commands
+
+| Slash name | Aliases | Behavior | Palette |
+| --- | --- | --- | --- |
+| `/amm-opencode-setup` | `/amm-opencode` | OpenCode setup wizard | Visible |
+| `/amm-ohmy-setup` | `/amm`, `/model-config`, `/agent-config` | Oh My OpenAgent setup wizard | Visible |
+| `/amm-all-ohmy` | — | Apply one model to every oh-my agent and category | Hidden |
+| `/amm-status` | — | Show oh-my assignments | Hidden |
+| `/amm-opencode-all` | — | Apply one model to all resolved OpenCode agents, including built-ins | Hidden |
+| `/amm-opencode-status` | — | Show OpenCode agent models | Hidden |
+
+The legacy bulk and status slash commands are unchanged: same names, same behavior, same handlers. They are only `hidden` so the palette stays focused on the two setup rows. `/amm` and `/amm-opencode` are not separate slash commands any more; they resolve as aliases of the wizard, which supersedes the old one-target-at-a-time dialogs.
 
 ## License
 
