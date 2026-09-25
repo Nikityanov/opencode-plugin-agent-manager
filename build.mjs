@@ -1,12 +1,18 @@
-import { mkdir } from "node:fs/promises"
+import { mkdir, rm } from "node:fs/promises"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { build } from "esbuild"
 import { solidPlugin } from "esbuild-plugin-solid"
 
-await mkdir("dist", { recursive: true })
+const projectRoot = dirname(fileURLToPath(import.meta.url))
+const distDirectory = join(projectRoot, "dist")
+
+await rm(distDirectory, { recursive: true, force: true })
+await mkdir(distDirectory, { recursive: true })
 
 await build({
-  entryPoints: ["src/tui.tsx"],
-  outfile: "dist/tui.js",
+  entryPoints: [join(projectRoot, "src/tui.tsx")],
+  outfile: join(distDirectory, "tui.js"),
   format: "esm",
   platform: "node",
   target: "node20",
@@ -24,8 +30,8 @@ await build({
 })
 
 await build({
-  entryPoints: ["src/config.ts"],
-  outfile: "dist/config.js",
+  entryPoints: [join(projectRoot, "src/config.ts")],
+  outfile: join(distDirectory, "config.js"),
   format: "esm",
   platform: "node",
   target: "node20",
@@ -35,8 +41,8 @@ await build({
 })
 
 await build({
-  entryPoints: ["src/tui/operations.ts"],
-  outfile: "dist/operations.js",
+  entryPoints: [join(projectRoot, "src/tui/operations.ts")],
+  outfile: join(distDirectory, "operations.js"),
   format: "esm",
   platform: "node",
   target: "node20",

@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../src/tui/operations.ts"],
+  "sourcesContent": ["import type { OhMyConfigLayer } from \"../types\"\n\nexport function applyModelToOhMyEntries(config: OhMyConfigLayer, model: string): number {\n  let count = 0\n  for (const section of [config.agents, config.categories]) {\n    if (!section) continue\n    for (const key of Object.keys(section)) {\n      section[key] = { ...section[key], model }\n      count += 1\n    }\n  }\n  return count\n}\n"],
+  "mappings": ";AAEO,SAAS,wBAAwB,QAAyB,OAAuB;AACtF,MAAI,QAAQ;AACZ,aAAW,WAAW,CAAC,OAAO,QAAQ,OAAO,UAAU,GAAG;AACxD,QAAI,CAAC,QAAS;AACd,eAAW,OAAO,OAAO,KAAK,OAAO,GAAG;AACtC,cAAQ,GAAG,IAAI,EAAE,GAAG,QAAQ,GAAG,GAAG,MAAM;AACxC,eAAS;AAAA,IACX;AAAA,EACF;AACA,SAAO;AACT;",
+  "names": []
+}
