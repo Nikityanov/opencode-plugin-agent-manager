@@ -13,7 +13,10 @@
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && npm run build && node scripts/verify-package.mjs",
+    "test": "npm run typecheck && npm run build && node scripts/verify-package.mjs && node scripts/verify-setup.mjs && node scripts/verify-viewport.mjs && node scripts/verify-commands.mjs",
+    "test:commands": "node scripts/verify-commands.mjs",
+    "test:setup": "node scripts/verify-setup.mjs",
+    "test:viewport": "node scripts/verify-viewport.mjs",
     "verify:install": "node scripts/verify-install.mjs",
     "verify:opencode": "node scripts/verify-opencode-install.mjs"
   },
