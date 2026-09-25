@@ -32,7 +32,7 @@ Use an immutable GitHub tag in `tui.json`:
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    "https://github.com/OWNER/REPO/archive/refs/tags/v0.1.2.tar.gz"
+    "https://github.com/OWNER/REPO/archive/refs/tags/v0.1.3.tar.gz"
   ]
 }
 ```
@@ -54,7 +54,7 @@ On Windows, `~` refers to your user profile, so the global path is typically `%U
 As a convenience, install the pinned package and write the global entry with:
 
 ```bash
-opencode plugin "https://github.com/OWNER/REPO/archive/refs/tags/v0.1.2.tar.gz" --global
+opencode plugin "https://github.com/OWNER/REPO/archive/refs/tags/v0.1.3.tar.gz" --global
 ```
 
 This command writes the global TUI configuration. For a project-only installation, edit `<project>/.opencode/tui.json` manually instead. After changing the package entry, switching tags, or changing configuration, fully quit and restart OpenCode.
@@ -93,13 +93,13 @@ Use the complete URL printed by the command. The plugin spec must point to the p
 
 ### Optional npm installation after publication
 
-Do not use the bare `agent-model-manager` spec until the package is actually published to npm. After a release is published, pin the published version. For example, if `0.1.2` is published, use:
+Do not use the bare `agent-model-manager` spec until the package is actually published to npm. After a release is published, pin the published version. For example, if `0.1.3` is published, use:
 
 ```json
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    "agent-model-manager@0.1.2"
+    "agent-model-manager@0.1.3"
   ]
 }
 ```
@@ -107,7 +107,7 @@ Do not use the bare `agent-model-manager` spec until the package is actually pub
 The equivalent global convenience command is:
 
 ```bash
-opencode plugin agent-model-manager@0.1.2 --global
+opencode plugin agent-model-manager@0.1.3 --global
 ```
 
 Use these npm examples only after the exact version exists on npm. Until then, use the pinned GitHub tag or the clone and build fallback. Installing the package with npm alone does not register it as a TUI plugin; register it through `tui.json`, `tui.jsonc`, or the OpenCode plugin command.
@@ -148,7 +148,7 @@ For the clone fallback, point the `plugin` entry to the complete `file://` URL f
 
 ### npm reports that the package is not found
 
-Before npm publication, a bare `agent-model-manager` entry will not resolve. Use the pinned GitHub tag or the clone and build fallback. After publication, use the exact published version, such as `agent-model-manager@0.1.2`, rather than relying on a moving `latest` version.
+Before npm publication, a bare `agent-model-manager` entry will not resolve. Use the pinned GitHub tag or the clone and build fallback. After publication, use the exact published version, such as `agent-model-manager@0.1.3`, rather than relying on a moving `latest` version.
 
 ## Configuration shape
 

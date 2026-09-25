@@ -1,7 +1,7 @@
 {
   "name": "agent-model-manager",
-  "version": "0.1.2",
-  "description": "TUI plugin for configuring agent and category models in modern and legacy oh-my-openagent configurations",
+  "version": "0.1.3",
+  "description": "TUI setup wizard for assigning models to OpenCode agents and oh-my-openagent agents and categories",
   "type": "module",
   "exports": {
     "./tui": "./dist/tui.js"
