@@ -10,7 +10,13 @@ type TuiApi = Parameters<TuiPlugin>[0]
 function isOhMyOpenAgentInstalled(api: TuiApi): boolean {
   return (api.state.config.plugin ?? []).some((entry) => {
     const spec = Array.isArray(entry) ? entry[0] : entry
-    return typeof spec === "string" && (spec === "oh-my-openagent" || spec.startsWith("oh-my-openagent@"))
+    return (
+      typeof spec === "string" &&
+      (spec === "oh-my-openagent" ||
+        spec.startsWith("oh-my-openagent@") ||
+        spec === "oh-my-opencode" ||
+        spec.startsWith("oh-my-opencode@"))
+    )
   })
 }
 

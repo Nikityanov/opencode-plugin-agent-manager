@@ -1,6 +1,6 @@
-import type { OhMyOpenAgentConfig } from "../types"
+import type { OhMyConfigLayer } from "../types"
 
-export function applyModelToOhMyEntries(config: OhMyOpenAgentConfig, model: string): number {
+export function applyModelToOhMyEntries(config: OhMyConfigLayer, model: string): number {
   let count = 0
   for (const section of [config.agents, config.categories]) {
     if (!section) continue
