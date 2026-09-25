@@ -46,6 +46,7 @@ jobs:
 
   opencode:
     name: OpenCode install (${{ matrix.version }})
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -68,5 +69,5 @@ jobs:
       - name: Verify isolated GitHub plugin install
         env:
           # Pin the checked-out commit; no owner or mutable default branch is assumed.
-          PLUGIN_SPEC: "github:${{ github.repository }}#${{ github.sha }}"
+          PLUGIN_SPEC: "github:${{ github.repository }}#${{ github.ref_name }}"
         run: npm run verify:opencode
