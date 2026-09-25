@@ -1,50 +1,31 @@
-/**
- * Universal types for oh-my-openagent.json configuration.
- * These are inferred from the file, not hardcoded.
- */
+import { z } from "zod"
 
-/** A provider entry in oh-my-openagent.json */
-export interface ProviderEntry {
-  /** Provider display name */
-  name: string
-  /** Provider identifier (e.g. "openrouter", "openai") */
-  id: string
-  /** Available models from this provider */
-  models: ModelEntry[]
-}
+export const modelAssignmentSchema = z
+  .object({
+    model: z.string().optional(),
+    fallback_models: z.unknown().optional(),
+  })
+  .passthrough()
 
-/** A model entry under a provider */
-export interface ModelEntry {
-  /** Model ID (e.g. "anthropic/claude-sonnet-4") */
-  id: string
-  /** Display name */
-  name: string
-}
+export type ModelAssignment = z.infer<typeof modelAssignmentSchema>
 
-/** Agent or category assignment */
-export interface ModelAssignment {
-  /** Which provider this model belongs to */
-  providerId: string
-  /** The model ID within the provider */
-  modelId: string
-}
+const assignmentMapSchema = z.record(z.string(), modelAssignmentSchema)
 
-/** The root structure of oh-my-openagent.json */
-export interface OhMyOpenAgentConfig {
-  /** Available providers and their models */
-  providers?: Record<string, ProviderEntry>
-  /** Per-agent model assignments */
-  agents?: Record<string, ModelAssignment>
-  /** Per-category model assignments */
-  categories?: Record<string, ModelAssignment>
-  /** Default/fallback model */
-  fallback_model?: ModelAssignment
-}
+export const ohMyOpenAgentConfigSchema = z
+  .object({
+    agents: assignmentMapSchema.optional(),
+    categories: assignmentMapSchema.optional(),
+  })
+  .passthrough()
 
-/** Discovered config location */
-export interface ConfigLocation {
-  /** Absolute path to oh-my-openagent.json */
+export type OhMyOpenAgentConfig = z.infer<typeof ohMyOpenAgentConfigSchema>
+
+export type ConfigLocation = {
   path: string
-  /** The parsed config */
   config: OhMyOpenAgentConfig
+}
+
+export type ModelOption = {
+  readonly value: string
+  readonly title: string
 }

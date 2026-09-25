@@ -1,90 +1,146 @@
-/**
- * Universal config scanner — reads oh-my-openagent.json dynamically.
- * No hardcoded agents or categories; everything is discovered from the file.
- */
-
-import { readFileSync, writeFileSync, existsSync } from "node:fs"
+import { applyEdits, modify, parse as parseJsonc, type ParseError } from "jsonc-parser"
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs"
+import { homedir } from "node:os"
 import { join } from "node:path"
-import type { OhMyOpenAgentConfig, ConfigLocation } from "./types"
+import {
+  ohMyOpenAgentConfigSchema,
+  type ConfigLocation,
+  type OhMyOpenAgentConfig,
+} from "./types"
 
-const CONFIG_FILENAME = "oh-my-openagent.json"
+const CONFIG_FILENAMES = ["oh-my-openagent.json", "oh-my-openagent.jsonc"] as const
+const OPEN_CODE_CONFIG_FILENAMES = ["opencode.jsonc", "opencode.json", "config.json"] as const
+const MAX_PARENT_LEVELS = 5
 
-/**
- * Find oh-my-openagent.json by walking up from the given directory.
- * Searches:
- *   1. directory/CONFIG_FILENAME
- *   2. directory/../CONFIG_FILENAME
- *   3. Up to 5 parent levels
- */
-export function findConfig(startDir: string): ConfigLocation | null {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+export function resolveOpenCodeConfigPath(pathOrDirectory: string): string {
+  if (!isDirectory(pathOrDirectory)) return pathOrDirectory
+
+  for (const filename of OPEN_CODE_CONFIG_FILENAMES) {
+    const candidate = join(pathOrDirectory, filename)
+    if (existsSync(candidate)) return candidate
+  }
+
+  return join(pathOrDirectory, "opencode.jsonc")
+}
+
+function parseJsoncText(text: string, path: string): Record<string, unknown> {
+  const errors: ParseError[] = []
+  const parsed: unknown = parseJsonc(text, errors, {
+    allowTrailingComma: true,
+  })
+
+  if (errors.length > 0 || !isRecord(parsed)) {
+    throw new Error(`Invalid JSON object in ${path}`)
+  }
+
+  return parsed
+}
+
+function parseJsoncObject(path: string): Record<string, unknown> {
+  return parseJsoncText(readFileSync(path, "utf-8"), path)
+}
+
+function readConfigFile(path: string): OhMyOpenAgentConfig {
+  return ohMyOpenAgentConfigSchema.parse(parseJsoncObject(path))
+}
+
+function findExistingConfig(startDir: string): ConfigLocation | null {
+  const visited = new Set<string>()
   let current = startDir
-  for (let i = 0; i < 5; i++) {
-    const candidate = join(current, CONFIG_FILENAME)
-    if (existsSync(candidate)) {
-      const raw = readFileSync(candidate, "utf-8")
-      const config = JSON.parse(raw) as OhMyOpenAgentConfig
-      return { path: candidate, config }
+
+  for (let level = 0; level < MAX_PARENT_LEVELS; level += 1) {
+    for (const filename of CONFIG_FILENAMES) {
+      const candidate = join(current, filename)
+      if (visited.has(candidate)) continue
+      visited.add(candidate)
+
+      if (existsSync(candidate)) {
+        return { path: candidate, config: readConfigFile(candidate) }
+      }
     }
+
     const parent = join(current, "..")
     if (parent === current) break
     current = parent
   }
+
+  const globalDirectory = join(homedir(), ".config", "opencode")
+  for (const filename of CONFIG_FILENAMES) {
+    const candidate = join(globalDirectory, filename)
+    if (visited.has(candidate) || !existsSync(candidate)) continue
+    return { path: candidate, config: readConfigFile(candidate) }
+  }
+
   return null
 }
 
-/**
- * Read the config from a known absolute path.
- */
+export function findConfig(startDir: string): ConfigLocation | null {
+  return findExistingConfig(startDir)
+}
+
 export function readConfig(absolutePath: string): OhMyOpenAgentConfig {
-  const raw = readFileSync(absolutePath, "utf-8")
-  return JSON.parse(raw) as OhMyOpenAgentConfig
+  return readConfigFile(absolutePath)
 }
 
-/**
- * Write config back to disk, preserving structure.
- */
 export function writeConfig(absolutePath: string, config: OhMyOpenAgentConfig): void {
-  writeFileSync(absolutePath, JSON.stringify(config, null, 2), "utf-8")
+  writeFileSync(absolutePath, `${JSON.stringify(config, null, 2)}\n`, "utf-8")
 }
 
-/**
- * Get all available models from all providers as a flat list.
- */
-export function getAllModels(config: OhMyOpenAgentConfig): Array<{
-  providerId: string
-  providerName: string
-  modelId: string
-  modelName: string
-}> {
-  const result: Array<{
-    providerId: string
-    providerName: string
-    modelId: string
-    modelName: string
-  }> = []
+export function getConfigurableKeys(config: OhMyOpenAgentConfig): string[] {
+  return [...Object.keys(config.agents ?? {}), ...Object.keys(config.categories ?? {})]
+}
 
-  if (!config.providers) return result
+export function setOpenCodeAgentModels(
+  pathOrDirectory: string,
+  agentNames: readonly string[],
+  model: string,
+): number {
+  const names = [...new Set(agentNames)]
+  if (names.length === 0) return 0
 
-  for (const [providerId, provider] of Object.entries(config.providers)) {
-    for (const model of provider.models) {
-      result.push({
-        providerId,
-        providerName: provider.name,
-        modelId: model.id,
-        modelName: model.name,
+  const configPath = resolveOpenCodeConfigPath(pathOrDirectory)
+  const raw = existsSync(configPath) ? readFileSync(configPath, "utf-8") : "{}\n"
+  const config = parseJsoncText(raw, configPath)
+  const existingAgents = isRecord(config.agent) ? config.agent : {}
+  const missingNames = names.filter((name) => !isRecord(existingAgents[name]))
+
+  if (missingNames.length === 0) {
+    let updated = raw
+    for (const name of names) {
+      const edits = modify(updated, ["agent", name, "model"], model, {
+        formattingOptions: { insertSpaces: true, tabSize: 2 },
       })
+      updated = applyEdits(updated, edits)
+    }
+    writeFileSync(configPath, updated.endsWith("\n") ? updated : `${updated}\n`, "utf-8")
+    return names.length
+  }
+
+  const nextAgents: Record<string, unknown> = { ...existingAgents }
+  for (const name of names) {
+    const current = nextAgents[name]
+    nextAgents[name] = {
+      ...(isRecord(current) ? current : {}),
+      model,
     }
   }
 
-  return result
-}
-
-/**
- * Get all configurable keys (agents + categories) from config.
- */
-export function getConfigurableKeys(config: OhMyOpenAgentConfig): string[] {
-  const keys: string[] = []
-  if (config.agents) keys.push(...Object.keys(config.agents))
-  if (config.categories) keys.push(...Object.keys(config.categories))
-  return keys
+  const edits = modify(raw, ["agent"], nextAgents, {
+    formattingOptions: { insertSpaces: true, tabSize: 2 },
+  })
+  const updated = applyEdits(raw, edits)
+  writeFileSync(configPath, updated.endsWith("\n") ? updated : `${updated}\n`, "utf-8")
+  return names.length
 }
