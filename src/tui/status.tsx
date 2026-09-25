@@ -1,8 +1,10 @@
 /** @jsxImportSource @opentui/solid */
 
-import { readConfig } from "../config"
+import { getOhMyConfigLayer, readConfig } from "../config"
 import type { ConfigLocation, ModelAssignment } from "../types"
 import type { TuiApi } from "./model-options"
+import { getOhMyTargets } from "./ohmy-commands"
+import { showScrollableStatus } from "./status-dialog"
 
 function formatAssignment(assignment: ModelAssignment): string {
   return assignment.model ?? "(inherited)"
@@ -10,36 +12,29 @@ function formatAssignment(assignment: ModelAssignment): string {
 
 export function handleStatusCommand(api: TuiApi, configLocation: ConfigLocation): void {
   const config = readConfig(configLocation.path)
+  const section = configLocation.section ?? "root"
+  const layer = getOhMyConfigLayer(config, section)
+  const targets = getOhMyTargets(config, section)
   const lines = ["Current oh-my model assignments:", "", "Agents:"]
-  const agents = Object.entries(config.agents ?? {})
+  const agents = targets.filter((target) => target.kind === "agent")
 
   if (agents.length === 0) {
     lines.push("  (none)")
   } else {
-    for (const [name, assignment] of agents) {
-      lines.push(`  ${name}: ${formatAssignment(assignment)}`)
+    for (const target of agents) {
+      lines.push(`  ${target.key}: ${formatAssignment(layer.agents?.[target.key] ?? {})}`)
     }
   }
 
   lines.push("", "Categories:")
-  const categories = Object.entries(config.categories ?? {})
+  const categories = targets.filter((target) => target.kind === "category")
   if (categories.length === 0) {
     lines.push("  (none)")
   } else {
-    for (const [name, assignment] of categories) {
-      lines.push(`  ${name}: ${formatAssignment(assignment)}`)
+    for (const target of categories) {
+      lines.push(`  ${target.key}: ${formatAssignment(layer.categories?.[target.key] ?? {})}`)
     }
   }
 
-  api.ui.dialog.setSize("medium")
-  api.ui.dialog.replace(() => {
-    const DialogAlert = api.ui.DialogAlert
-    return (
-      <DialogAlert
-        title="Oh-my Model Assignments"
-        message={lines.join("\n")}
-        onConfirm={() => api.ui.dialog.clear()}
-      />
-    )
-  })
+  showScrollableStatus(api, "Oh-my Model Assignments", lines)
 }

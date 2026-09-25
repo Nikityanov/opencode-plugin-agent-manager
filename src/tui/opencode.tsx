@@ -1,10 +1,11 @@
 /** @jsxImportSource @opentui/solid */
 
-import { setOpenCodeAgentModels } from "../config"
+import { readOpenCodeAgentModels, setOpenCodeAgentModels } from "../config"
 import type { ModelOption } from "../types"
 import { selectModel } from "./bulk"
 import type { TuiApi } from "./model-options"
 import { showError } from "./notifications"
+import { showScrollableStatus } from "./status-dialog"
 
 function getAgentNames(api: TuiApi): string[] {
   return Object.keys(api.state.config.agent ?? {})
@@ -89,27 +90,21 @@ export function handleOpenCodeConfigCommand(
   })
 }
 
-export function handleOpenCodeStatusCommand(api: TuiApi): void {
-  const entries = Object.entries(api.state.config.agent ?? {})
-  if (entries.length === 0) {
+export function handleOpenCodeStatusCommand(api: TuiApi, configPath: string): void {
+  const stateAgents = api.state.config.agent ?? {}
+  const persistedModels = readOpenCodeAgentModels(configPath)
+  const names = [...new Set([...Object.keys(stateAgents), ...Object.keys(persistedModels)])]
+
+  if (names.length === 0) {
     showWarning(api, "No OpenCode agents found in the active configuration")
     return
   }
 
   const lines = ["OpenCode agent models:", ""]
-  for (const [name, agent] of entries) {
-    lines.push(`  ${name}: ${agent?.model ?? "(inherited/default)"}`)
+  for (const name of names) {
+    const model = persistedModels[name] ?? stateAgents[name]?.model
+    lines.push(`  ${name}: ${model ?? "(inherited/default)"}`)
   }
 
-  api.ui.dialog.setSize("medium")
-  api.ui.dialog.replace(() => {
-    const DialogAlert = api.ui.DialogAlert
-    return (
-      <DialogAlert
-        title="OpenCode Model Assignments"
-        message={lines.join("\n")}
-        onConfirm={() => api.ui.dialog.clear()}
-      />
-    )
-  })
+  showScrollableStatus(api, "OpenCode Model Assignments", lines)
 }

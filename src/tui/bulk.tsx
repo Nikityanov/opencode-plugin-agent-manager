@@ -1,9 +1,10 @@
 /** @jsxImportSource @opentui/solid */
 
-import { readConfig, setOpenCodeAgentModels, writeConfig } from "../config"
+import { getOhMyConfigLayer, readConfig, setOpenCodeAgentModels, writeConfig } from "../config"
 import type { ConfigLocation, ModelOption } from "../types"
 import type { TuiApi } from "./model-options"
 import { showError } from "./notifications"
+import { getOhMyTargets } from "./ohmy-commands"
 import { applyModelToOhMyEntries } from "./operations"
 
 export function selectModel(
@@ -67,8 +68,10 @@ export function handleOhMyBulkCommand(
   }
 
   const config = readConfig(configLocation.path)
-  const count =
-    Object.keys(config.agents ?? {}).length + Object.keys(config.categories ?? {}).length
+  const section = configLocation.section ?? "root"
+  const layer = getOhMyConfigLayer(config, section)
+  const targets = getOhMyTargets(config, section)
+  const count = targets.length
   if (count === 0) {
     api.ui.toast({
       variant: "warning",
@@ -86,8 +89,12 @@ export function handleOhMyBulkCommand(
       `Set ${model} for ${count} oh-my agents/categories?`,
       () => {
         try {
-          applyModelToOhMyEntries(config, model)
-          writeConfig(configLocation.path, config)
+          for (const target of targets) {
+            const entries = target.kind === "agent" ? (layer.agents ??= {}) : (layer.categories ??= {})
+            entries[target.key] ??= {}
+          }
+          applyModelToOhMyEntries(layer, model)
+          writeConfig(configLocation.path, config, section)
           api.ui.toast({
             variant: "success",
             title: "Oh-my agents updated",
