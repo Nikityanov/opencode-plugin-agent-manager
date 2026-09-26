@@ -10,6 +10,7 @@ import type {
 } from "../types"
 import { showError } from "./notifications"
 import type { TuiApi } from "./model-options"
+import { readPinnedModels, toModelPickerOptions } from "./pinned-models"
 
 export type Target =
   | { readonly kind: "agent"; readonly key: string }
@@ -88,6 +89,9 @@ function getAssignment(
   return getSection(config, section, target.kind)[target.key] ?? {}
 }
 
+/** Sentinel row that removes a model override instead of writing one. */
+const CLEAR_OVERRIDE_OPTION = "__clear__"
+
 function openModelSelector(
   api: TuiApi,
   configLocation: ConfigLocation,
@@ -97,13 +101,14 @@ function openModelSelector(
 ): void {
   const section = configLocation.section ?? "root"
   const current = getAssignment(config, section, target).model
-  const modelOptions: ModelOption[] = [
-    ...models.map((model) => ({
+  const modelOptions = toModelPickerOptions(
+    models.map((model) => ({
       ...model,
       title: `${model.title}${model.value === current ? " (current)" : ""}`,
     })),
-    { value: "__clear__", title: "Clear model override" },
-  ]
+    readPinnedModels(api),
+    [{ title: "Clear model override", value: CLEAR_OVERRIDE_OPTION }],
+  )
 
   api.ui.dialog.replace(() => {
     const DialogSelect = api.ui.DialogSelect
@@ -136,7 +141,7 @@ function applyChange(
   const section = configLocation.section ?? "root"
   const assignment = getAssignment(config, section, target)
 
-  if (selected === "__clear__") {
+  if (selected === CLEAR_OVERRIDE_OPTION) {
     delete assignment.model
   } else {
     assignment.model = selected
@@ -149,7 +154,7 @@ function applyChange(
   api.ui.toast({
     variant: "success",
     title: "Saved",
-    message: `${targetTitle(target)} → ${selected === "__clear__" ? "cleared" : selectedTitle}`,
+    message: `${targetTitle(target)} → ${selected === CLEAR_OVERRIDE_OPTION ? "cleared" : selectedTitle}`,
     duration: 2000,
   })
 }

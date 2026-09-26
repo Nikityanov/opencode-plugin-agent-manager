@@ -215,6 +215,51 @@ function showError(api, error) {
 
 // src/tui/ohmy-commands.tsx
 import { createComponent as _$createComponent } from "@opentui/solid";
+
+// src/tui/pinned-models.ts
+var STORAGE_KEY = "agent-model-manager.pinned-models";
+var PINNED_CATEGORY = "Pinned";
+function openStore(api) {
+  const store = api.kv;
+  return store !== void 0 && store.ready ? store : void 0;
+}
+function readPinnedModels(api) {
+  const store = openStore(api);
+  if (store === void 0) return [];
+  const raw = store.get(STORAGE_KEY, []);
+  if (!Array.isArray(raw)) return [];
+  const pinned = [];
+  for (const entry of raw) {
+    if (typeof entry !== "string") continue;
+    const value = entry.trim();
+    if (value.length > 0 && !pinned.includes(value)) pinned.push(value);
+  }
+  return pinned;
+}
+function togglePinnedModel(api, model) {
+  const store = openStore(api);
+  const value = model.trim();
+  if (store === void 0 || value.length === 0) return false;
+  const pinned = readPinnedModels(api);
+  const next = pinned.includes(value) ? pinned.filter((entry) => entry !== value) : [...pinned, value];
+  store.set(STORAGE_KEY, next);
+  return next.includes(value);
+}
+function toModelPickerOptions(models, pinned, trailing = []) {
+  const pinnedSet = new Set(pinned);
+  const head = [];
+  const tail = [];
+  for (const model of models) {
+    if (pinnedSet.has(model.value)) {
+      head.push({ title: model.title, value: model.value, category: PINNED_CATEGORY });
+    } else {
+      tail.push({ title: model.title, value: model.value });
+    }
+  }
+  return [...head, ...tail, ...trailing];
+}
+
+// src/tui/ohmy-commands.tsx
 var DEFAULT_AGENT_NAMES = ["sisyphus", "hephaestus", "oracle", "librarian", "explore", "multimodal-looker", "prometheus", "metis", "momus", "atlas", "sisyphus-junior"];
 var DEFAULT_CATEGORY_NAMES = ["visual-engineering", "ultrabrain", "deep", "artistry", "quick", "unspecified-low", "unspecified-high", "writing"];
 function getOhMyTargets(config, section, includeBuiltIns = section === "opencode") {
@@ -244,16 +289,17 @@ function getSection(config, section, kind) {
 function getAssignment(config, section, target) {
   return getSection(config, section, target.kind)[target.key] ?? {};
 }
+var CLEAR_OVERRIDE_OPTION = "__clear__";
 function openModelSelector(api, configLocation, config, models, target) {
   const section = configLocation.section ?? "root";
   const current = getAssignment(config, section, target).model;
-  const modelOptions = [...models.map((model) => ({
+  const modelOptions = toModelPickerOptions(models.map((model) => ({
     ...model,
     title: `${model.title}${model.value === current ? " (current)" : ""}`
-  })), {
-    value: "__clear__",
-    title: "Clear model override"
-  }];
+  })), readPinnedModels(api), [{
+    title: "Clear model override",
+    value: CLEAR_OVERRIDE_OPTION
+  }]);
   api.ui.dialog.replace(() => {
     const DialogSelect = api.ui.DialogSelect;
     return _$createComponent(DialogSelect, {
@@ -276,7 +322,7 @@ function openModelSelector(api, configLocation, config, models, target) {
 function applyChange(api, configLocation, config, models, target, selected) {
   const section = configLocation.section ?? "root";
   const assignment = getAssignment(config, section, target);
-  if (selected === "__clear__") {
+  if (selected === CLEAR_OVERRIDE_OPTION) {
     delete assignment.model;
   } else {
     assignment.model = selected;
@@ -287,7 +333,7 @@ function applyChange(api, configLocation, config, models, target, selected) {
   api.ui.toast({
     variant: "success",
     title: "Saved",
-    message: `${targetTitle(target)} \u2192 ${selected === "__clear__" ? "cleared" : selectedTitle}`,
+    message: `${targetTitle(target)} \u2192 ${selected === CLEAR_OVERRIDE_OPTION ? "cleared" : selectedTitle}`,
     duration: 2e3
   });
 }
@@ -359,10 +405,7 @@ function selectModel(api, title, models, onSelect) {
     return _$createComponent2(DialogSelect, {
       title,
       get options() {
-        return models.map((model) => ({
-          title: model.title,
-          value: model.value
-        }));
+        return toModelPickerOptions(models, readPinnedModels(api));
       },
       onSelect: (option) => {
         api.ui.dialog.clear();
@@ -568,10 +611,10 @@ function showWarning(api, message) {
 }
 function openAgentModelPicker(api, configPath, models, agentName) {
   const current = api.state.config.agent?.[agentName]?.model;
-  const options = models.map((model) => ({
+  const options = toModelPickerOptions(models.map((model) => ({
     ...model,
     title: `${model.title}${model.value === current ? " (current)" : ""}`
-  }));
+  })), readPinnedModels(api));
   api.ui.dialog.replace(() => {
     const DialogSelect = api.ui.DialogSelect;
     return _$createComponent3(DialogSelect, {
@@ -639,10 +682,45 @@ function handleOpenCodeStatusCommand(api, configPath) {
   showScrollableStatus(api, "OpenCode Model Assignments", lines);
 }
 
+// src/tui/pin-command.tsx
+import { createComponent as _$createComponent4 } from "@opentui/solid";
+function handlePinCommand(api, models) {
+  if (models.length === 0) {
+    api.ui.toast({
+      variant: "warning",
+      title: "Agent Model Manager",
+      message: "No models found in the OpenCode configuration",
+      duration: 3e3
+    });
+    return;
+  }
+  function render() {
+    const pinned = readPinnedModels(api);
+    const pinnedSet = new Set(pinned);
+    const options = toModelPickerOptions(models, pinned).map((option) => ({
+      ...option,
+      description: pinnedSet.has(option.value) ? `In ${PINNED_CATEGORY} \xB7 Enter to unpin` : "Enter to pin"
+    }));
+    api.ui.dialog.replace(() => {
+      const DialogSelect = api.ui.DialogSelect;
+      return _$createComponent4(DialogSelect, {
+        title: "Pin or unpin a model",
+        options,
+        onSelect: (option) => {
+          togglePinnedModel(api, option.value);
+          render();
+        }
+      });
+    });
+    api.ui.dialog.setSize("large");
+  }
+  render();
+}
+
 // src/tui/setup-screens.tsx
 import { memo as _$memo2 } from "@opentui/solid";
 import { mergeProps as _$mergeProps } from "@opentui/solid";
-import { createComponent as _$createComponent5 } from "@opentui/solid";
+import { createComponent as _$createComponent6 } from "@opentui/solid";
 
 // src/tui/setup-view.tsx
 import { createTextNode as _$createTextNode2 } from "@opentui/solid";
@@ -650,7 +728,7 @@ import { memo as _$memo } from "@opentui/solid";
 import { use as _$use } from "@opentui/solid";
 import { effect as _$effect2 } from "@opentui/solid";
 import { insertNode as _$insertNode2 } from "@opentui/solid";
-import { createComponent as _$createComponent4 } from "@opentui/solid";
+import { createComponent as _$createComponent5 } from "@opentui/solid";
 import { insert as _$insert2 } from "@opentui/solid";
 import { setProp as _$setProp2 } from "@opentui/solid";
 import { createElement as _$createElement2 } from "@opentui/solid";
@@ -682,7 +760,7 @@ function SetupFrame(props) {
     _$setProp2(_el$5, "flexDirection", "row");
     _$setProp2(_el$5, "justifyContent", "space-between");
     _$setProp2(_el$5, "flexShrink", 0);
-    _$insert2(_el$5, _$createComponent4(For, {
+    _$insert2(_el$5, _$createComponent5(For, {
       get each() {
         return props.footer;
       },
@@ -738,7 +816,7 @@ function TargetCheckboxList(props) {
         _$insertNode2(_el$11, _$createTextNode2(`no targets available`));
         _$effect2((_$p) => _$setProp2(_el$11, "attributes", TextAttributes2.DIM, _$p));
         return _el$11;
-      })() : _$createComponent4(For, {
+      })() : _$createComponent5(For, {
         get each() {
           return props.rows;
         },
@@ -812,7 +890,7 @@ function reviewStatusText(status, message) {
   }
 }
 function ReviewSummary(props) {
-  return _$createComponent4(SetupFrame, {
+  return _$createComponent5(SetupFrame, {
     title: "Review",
     get breadcrumb() {
       return [props.scope, props.section];
@@ -853,7 +931,7 @@ function ReviewSummary(props) {
             _$insertNode2(_el$27, _$createTextNode2(`no targets selected`));
             _$effect2((_$p) => _$setProp2(_el$27, "attributes", TextAttributes2.DIM, _$p));
             return _el$27;
-          })() : _$createComponent4(For, {
+          })() : _$createComponent5(For, {
             get each() {
               return props.targetNames;
             },
@@ -1033,7 +1111,7 @@ function selectedNames(state) {
 function hubScreen(props) {
   const DialogSelect = props.DialogSelect;
   const choices = [...props.sections, "review"];
-  return _$createComponent5(DialogSelect, {
+  return _$createComponent6(DialogSelect, {
     get title() {
       return props.title;
     },
@@ -1048,7 +1126,7 @@ function hubScreen(props) {
 }
 function modelScreen(props) {
   const DialogSelect = props.DialogSelect;
-  return _$createComponent5(DialogSelect, _$mergeProps({
+  return _$createComponent6(DialogSelect, _$mergeProps({
     get title() {
       return `Select model for ${LABELS[props.section]}`;
     },
@@ -1062,7 +1140,7 @@ function modelScreen(props) {
   }));
 }
 function targetsScreen(props) {
-  return _$createComponent5(SetupFrame, {
+  return _$createComponent6(SetupFrame, {
     get title() {
       return props.title;
     },
@@ -1070,7 +1148,7 @@ function targetsScreen(props) {
       return [LABELS[props.scope], LABELS[props.state.section]];
     },
     get body() {
-      return _$createComponent5(TargetCheckboxList, {
+      return _$createComponent6(TargetCheckboxList, {
         get sectionLabel() {
           return LABELS[props.state.section];
         },
@@ -1095,7 +1173,7 @@ function targetsScreen(props) {
   });
 }
 function reviewScreen(props) {
-  return _$createComponent5(ReviewSummary, {
+  return _$createComponent6(ReviewSummary, {
     get scope() {
       return LABELS[props.scope];
     },
@@ -1385,13 +1463,10 @@ function runSetupFlow(api, options) {
     warn(api, "No targets found in the active configuration");
     return;
   }
-  const modelOptions = [...models.map((model) => ({
-    title: model.title,
-    value: model.value
-  })), {
+  const modelOptions = toModelPickerOptions(models, readPinnedModels(api), [{
     title: "Back",
     value: MODEL_BACK_OPTION
-  }];
+  }]);
   let state = createInitialSetupState({
     targets: data.targets,
     models: models.map((model) => model.value)
@@ -1763,7 +1838,15 @@ function registerModelManagerCommands(api, configLocation, openCodeConfigPath) {
     hidden: true,
     run: guard(api, () => handleOpenCodeStatusCommand(api, openCodeConfigPath))
   }];
-  const commands = [...ohMyCommands, ...openCodeCommands];
+  const commands = [...ohMyCommands, ...openCodeCommands, {
+    name: "amm-pin",
+    title: "Pin or unpin a model",
+    category: CATEGORY,
+    namespace: "palette",
+    slashName: "amm-pin",
+    hidden: true,
+    run: guard(api, () => handlePinCommand(api, models))
+  }];
   const primaryCommand = configLocation ? "amm-ohmy-setup" : "amm-opencode-setup";
   const disposeCommands = api.keymap.registerLayer({
     commands

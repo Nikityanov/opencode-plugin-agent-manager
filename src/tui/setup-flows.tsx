@@ -5,6 +5,7 @@ import type { KeyEvent, ScrollBoxRenderable } from "@opentui/core"
 import type { JSX } from "solid-js"
 import type { TuiApi } from "./model-options"
 import { showError } from "./notifications"
+import { readPinnedModels, toModelPickerOptions } from "./pinned-models"
 import {
   MODEL_BACK_OPTION,
   hubScreen,
@@ -63,10 +64,11 @@ export function runSetupFlow(api: TuiApi, options: SetupFlow): void {
     return
   }
 
-  const modelOptions: TuiDialogSelectOption<string>[] = [
-    ...models.map((model) => ({ title: model.title, value: model.value })),
-    { title: "Back", value: MODEL_BACK_OPTION },
-  ]
+  const modelOptions: TuiDialogSelectOption<string>[] = toModelPickerOptions(
+    models,
+    readPinnedModels(api),
+    [{ title: "Back", value: MODEL_BACK_OPTION }],
+  )
 
   let state: SetupState = createInitialSetupState({
     targets: data.targets,

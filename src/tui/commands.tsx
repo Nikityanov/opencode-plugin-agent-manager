@@ -6,6 +6,7 @@ import { getModelOptions, type TuiApi } from "./model-options"
 import { showError } from "./notifications"
 import { handleConfigCommand } from "./ohmy-commands"
 import { handleOpenCodeConfigCommand, handleOpenCodeStatusCommand } from "./opencode"
+import { handlePinCommand } from "./pin-command"
 import { openOhMySetup, openOpenCodeSetup } from "./setup-entry"
 import { handleStatusCommand } from "./status"
 
@@ -116,7 +117,19 @@ export function registerModelManagerCommands(
     },
   ]
 
-  const commands = [...ohMyCommands, ...openCodeCommands]
+  const commands = [
+    ...ohMyCommands,
+    ...openCodeCommands,
+    {
+      name: "amm-pin",
+      title: "Pin or unpin a model",
+      category: CATEGORY,
+      namespace: "palette" as const,
+      slashName: "amm-pin",
+      hidden: true,
+      run: guard(api, () => handlePinCommand(api, models)),
+    },
+  ]
   const primaryCommand = configLocation ? "amm-ohmy-setup" : "amm-opencode-setup"
 
   // The commands and the shortcut live in two separate layers, mirroring the

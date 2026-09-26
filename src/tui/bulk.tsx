@@ -6,6 +6,7 @@ import type { TuiApi } from "./model-options"
 import { showError } from "./notifications"
 import { getOhMyTargets } from "./ohmy-commands"
 import { applyModelToOhMyTargets } from "./operations"
+import { readPinnedModels, toModelPickerOptions } from "./pinned-models"
 
 export function selectModel(
   api: TuiApi,
@@ -18,7 +19,7 @@ export function selectModel(
     return (
       <DialogSelect<string>
         title={title}
-        options={models.map((model) => ({ title: model.title, value: model.value }))}
+        options={toModelPickerOptions(models, readPinnedModels(api))}
         onSelect={(option) => {
           api.ui.dialog.clear()
           onSelect(option.value)

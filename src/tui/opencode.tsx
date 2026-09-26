@@ -5,6 +5,7 @@ import type { ModelOption } from "../types"
 import { selectModel } from "./bulk"
 import type { TuiApi } from "./model-options"
 import { showError } from "./notifications"
+import { readPinnedModels, toModelPickerOptions } from "./pinned-models"
 import { showScrollableStatus } from "./status-dialog"
 
 function getAgentNames(api: TuiApi): string[] {
@@ -27,10 +28,13 @@ function openAgentModelPicker(
   agentName: string,
 ): void {
   const current = api.state.config.agent?.[agentName]?.model
-  const options = models.map((model) => ({
-    ...model,
-    title: `${model.title}${model.value === current ? " (current)" : ""}`,
-  }))
+  const options = toModelPickerOptions(
+    models.map((model) => ({
+      ...model,
+      title: `${model.title}${model.value === current ? " (current)" : ""}`,
+    })),
+    readPinnedModels(api),
+  )
 
   api.ui.dialog.replace(() => {
     const DialogSelect = api.ui.DialogSelect

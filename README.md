@@ -9,6 +9,7 @@ TUI plugin for [OpenCode](https://opencode.ai) that edits agent and category mod
 - Reads available models from the resolved OpenCode configuration
 - Exposes exactly two command-palette rows, one per scope, that open the same setup wizard
 - Supports one-model bulk updates for each scope, including built-in oh-my agents and categories
+- Pins models to the top of every model picker with `/amm-pin`, remembered across restarts
 - Hides the oh-my palette row when the `oh-my-openagent` package or its configuration is unavailable
 - Supports a `Ctrl+Shift+M` shortcut for the primary setup command
 - Preserves unrelated configuration fields while changing model assignments
@@ -32,7 +33,7 @@ Use an immutable GitHub tag in `tui.json`:
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    "https://github.com/OWNER/REPO/archive/refs/tags/v0.1.3.tar.gz"
+    "https://github.com/OWNER/REPO/archive/refs/tags/v0.1.4.tar.gz"
   ]
 }
 ```
@@ -54,7 +55,7 @@ On Windows, `~` refers to your user profile, so the global path is typically `%U
 As a convenience, install the pinned package and write the global entry with:
 
 ```bash
-opencode plugin "https://github.com/OWNER/REPO/archive/refs/tags/v0.1.3.tar.gz" --global
+opencode plugin "https://github.com/OWNER/REPO/archive/refs/tags/v0.1.4.tar.gz" --global
 ```
 
 This command writes the global TUI configuration. For a project-only installation, edit `<project>/.opencode/tui.json` manually instead. After changing the package entry, switching tags, or changing configuration, fully quit and restart OpenCode.
@@ -93,13 +94,13 @@ Use the complete URL printed by the command. The plugin spec must point to the p
 
 ### Optional npm installation after publication
 
-Do not use the bare `agent-model-manager` spec until the package is actually published to npm. After a release is published, pin the published version. For example, if `0.1.3` is published, use:
+Do not use the bare `agent-model-manager` spec until the package is actually published to npm. After a release is published, pin the published version. For example, if `0.1.4` is published, use:
 
 ```json
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    "agent-model-manager@0.1.3"
+    "agent-model-manager@0.1.4"
   ]
 }
 ```
@@ -107,7 +108,7 @@ Do not use the bare `agent-model-manager` spec until the package is actually pub
 The equivalent global convenience command is:
 
 ```bash
-opencode plugin agent-model-manager@0.1.3 --global
+opencode plugin agent-model-manager@0.1.4 --global
 ```
 
 Use these npm examples only after the exact version exists on npm. Until then, use the pinned GitHub tag or the clone and build fallback. Installing the package with npm alone does not register it as a TUI plugin; register it through `tui.json`, `tui.jsonc`, or the OpenCode plugin command.
@@ -120,7 +121,7 @@ npm test
 npm run verify:install
 ```
 
-`npm test` type-checks the source, builds `dist/tui.js`, and verifies the package export contract. `npm run verify:install` additionally packs the project, installs the tarball with scripts enabled and disabled, resolves the TUI export, and checks that installation does not modify `tui.json`. Neither command registers the plugin in OpenCode. To use the local build, follow the clone and build fallback and register the printed `file://` package-root URL.
+`npm test` type-checks the source, builds `dist/tui.js`, and runs five verifiers: the package export contract, the wizard state machine, the layout budgets, the command palette, and pinned models. `npm run verify:install` additionally packs the project, installs the tarball with scripts enabled and disabled, resolves the TUI export, and checks that installation does not modify `tui.json`. Neither command registers the plugin in OpenCode. To use the local build, follow the clone and build fallback and register the printed `file://` package-root URL.
 
 ## Troubleshooting
 
@@ -148,7 +149,7 @@ For the clone fallback, point the `plugin` entry to the complete `file://` URL f
 
 ### npm reports that the package is not found
 
-Before npm publication, a bare `agent-model-manager` entry will not resolve. Use the pinned GitHub tag or the clone and build fallback. After publication, use the exact published version, such as `agent-model-manager@0.1.3`, rather than relying on a moving `latest` version.
+Before npm publication, a bare `agent-model-manager` entry will not resolve. Use the pinned GitHub tag or the clone and build fallback. After publication, use the exact published version, such as `agent-model-manager@0.1.4`, rather than relying on a moving `latest` version.
 
 ## Configuration shape
 
@@ -192,8 +193,15 @@ Both palette rows open the same four-step wizard for their own scope. Nothing is
 4. **Review** — the scope, the selected targets, and the model that will be written. `Enter` applies and closes the dialog, `Backspace` returns to the model picker. A failed write shows an error toast and leaves the review screen open.
 
 `Escape` and `Ctrl+C` stay owned by the OpenCode host dialog, as before.
-
 The OpenCode scope lists the union of the agents present in the resolved host configuration and the agents already persisted in the config file, and reads a persisted model in preference to the in-state value. The oh-my scope lists the agents and categories already defined in the active configuration, including the built-in names when the config uses the `[opencode]` layer.
+
+## Pinned models
+
+`/amm-pin` opens a model picker where `Enter` pins or unpins the highlighted model. The dialog stays open, so pinning several models is one visit; each row shows which of the two it will do, and the pinned group moves under the `Pinned` header as you go. Pinned models then lead every model picker in the plugin — the wizard, both bulk commands, and the legacy per-agent dialogs.
+
+The pinned group follows the model list rather than the order things were pinned, so pinning one more model never reshuffles the ones already in it. A pinned model has exactly one row: it is moved into the group, never repeated below it.
+
+Pins live in the host's own plugin key-value store, not in your configuration. The plugin's only write to your files is a model assignment, and a pin list is a preference of the picker, so it never travels with the config and never shows up in a diff. A stored value that is not a list of model names is ignored, and a store that is not ready is never written to, so a damaged store costs you the pin list and nothing else.
 
 ## Slash commands
 
@@ -201,6 +209,7 @@ The OpenCode scope lists the union of the agents present in the resolved host co
 | --- | --- | --- | --- |
 | `/amm-opencode-setup` | `/amm-opencode` | OpenCode setup wizard | Visible |
 | `/amm-ohmy-setup` | `/amm`, `/model-config`, `/agent-config` | Oh My OpenAgent setup wizard | Visible |
+| `/amm-pin` | — | Pin or unpin a model | Hidden |
 | `/amm-all-ohmy` | — | Apply one model to every oh-my agent and category | Hidden |
 | `/amm-status` | — | Show oh-my assignments | Hidden |
 | `/amm-opencode-all` | — | Apply one model to all resolved OpenCode agents, including built-ins | Hidden |

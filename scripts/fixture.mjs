@@ -3,15 +3,18 @@ import { join } from "node:path"
 /**
  * Shared host fixture for the runtime verifiers.
  *
- * The plugin reads four things off the host API that a real OpenCode process
+ * The plugin reads five things off the host API that a real OpenCode process
  * provides: `api.renderer` dimensions (the wizard derives its list budget from
- * them), `api.state`, `api.keymap.registerLayer`, and `api.ui.dialog`. The
- * fixture supplies just those, and records every registered layer so a caller
- * can address the command layer and the binding layer by role instead of by
- * registration order — the plugin registers them separately on purpose.
+ * them), `api.state`, `api.keymap.registerLayer`, `api.kv` (pinned models), and
+ * `api.ui.dialog`. The fixture supplies just those, and records every
+ * registered layer so a caller can address the command layer and the binding
+ * layer by role instead of by registration order - the plugin registers them
+ * separately on purpose. The key-value store is recorded too, so a caller can
+ * seed a value and assert what the plugin persisted.
  */
 export function createApi(directory, agents = {}, plugins = []) {
   const layers = []
+  const store = new Map()
   let replaceArguments
   const api = {
     // The wizard derives its list budget from the live renderer dimensions, so
@@ -34,6 +37,15 @@ export function createApi(directory, agents = {}, plugins = []) {
         return () => {}
       },
     },
+    kv: {
+      ready: true,
+      get(key, fallback) {
+        return store.has(key) ? store.get(key) : fallback
+      },
+      set(key, value) {
+        store.set(key, value)
+      },
+    },
     lifecycle: { onDispose() {} },
     ui: {
       DialogAlert: (props) => props,
@@ -54,5 +66,7 @@ export function createApi(directory, agents = {}, plugins = []) {
     getLayer: () => layers.find((layer) => Array.isArray(layer.commands)) ?? layers.at(-1),
     getBindingLayer: () => layers.find((layer) => Array.isArray(layer.bindings)),
     getReplaceArguments: () => replaceArguments,
+    getKv: () => store,
+    seedKv: (key, value) => store.set(key, value),
   }
 }
