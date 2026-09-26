@@ -1781,6 +1781,28 @@ function registerModelManagerCommands(api, configLocation, openCodeConfigPath) {
   }
 }
 
+// src/version.ts
+import { readFileSync as readFileSync2 } from "node:fs";
+var PACKAGE_MANIFEST_URL = new URL("../package.json", import.meta.url);
+var UNKNOWN_VERSION = "unknown";
+function normalizeVersion(value) {
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : void 0;
+}
+function readManifestVersion() {
+  try {
+    const manifest = JSON.parse(readFileSync2(PACKAGE_MANIFEST_URL, "utf-8"));
+    if (typeof manifest !== "object" || manifest === null) return void 0;
+    return normalizeVersion(manifest.version);
+  } catch {
+    return void 0;
+  }
+}
+function resolvePluginVersion(metaVersion) {
+  return normalizeVersion(metaVersion) ?? readManifestVersion() ?? UNKNOWN_VERSION;
+}
+
 // src/tui.tsx
 var PLUGIN_ID = "agent-model-manager";
 function isOhMyOpenAgentInstalled(api) {
@@ -1789,15 +1811,16 @@ function isOhMyOpenAgentInstalled(api) {
     return typeof spec === "string" && (spec === "oh-my-openagent" || spec.startsWith("oh-my-openagent@") || spec === "oh-my-opencode" || spec.startsWith("oh-my-opencode@"));
   });
 }
-var tui = async (api) => {
+var tui = async (api, _options, meta) => {
   const projectDir = api.state.path.directory || process.cwd();
   const configLocation = findConfig(projectDir);
   const ohMyAvailable = configLocation !== null && isOhMyOpenAgentInstalled(api);
+  const version = resolvePluginVersion(meta.version);
   registerModelManagerCommands(api, ohMyAvailable ? configLocation : null, api.state.path.config);
   api.ui.toast({
     variant: ohMyAvailable ? "success" : "info",
     title: "Agent Model Manager",
-    message: ohMyAvailable ? `Loaded (${configLocation.path})` : "OpenCode agent controls loaded; oh-my-openagent is unavailable",
+    message: ohMyAvailable ? `Loaded v${version}` : `Loaded v${version}; oh-my-openagent is unavailable`,
     duration: 2e3
   });
 };

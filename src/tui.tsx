@@ -3,6 +3,7 @@
 import type { TuiPlugin, TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { findConfig } from "./config"
 import { registerModelManagerCommands } from "./tui/commands"
+import { resolvePluginVersion } from "./version"
 
 const PLUGIN_ID = "agent-model-manager" as const
 type TuiApi = Parameters<TuiPlugin>[0]
@@ -20,10 +21,11 @@ function isOhMyOpenAgentInstalled(api: TuiApi): boolean {
   })
 }
 
-const tui: TuiPlugin = async (api) => {
+const tui: TuiPlugin = async (api, _options, meta) => {
   const projectDir = api.state.path.directory || process.cwd()
   const configLocation = findConfig(projectDir)
   const ohMyAvailable = configLocation !== null && isOhMyOpenAgentInstalled(api)
+  const version = resolvePluginVersion(meta.version)
   registerModelManagerCommands(
     api,
     ohMyAvailable ? configLocation : null,
@@ -33,8 +35,8 @@ const tui: TuiPlugin = async (api) => {
     variant: ohMyAvailable ? "success" : "info",
     title: "Agent Model Manager",
     message: ohMyAvailable
-      ? `Loaded (${configLocation.path})`
-      : "OpenCode agent controls loaded; oh-my-openagent is unavailable",
+      ? `Loaded v${version}`
+      : `Loaded v${version}; oh-my-openagent is unavailable`,
     duration: 2000,
   })
 }
